@@ -12,6 +12,95 @@ interface SearchDropdownProps {
   minWidth?: number;
 }
 
+// Extracted SubjectItem to reduce nesting
+const SubjectItem = ({
+  subject,
+  onSelect,
+  handleKeyDown,
+}: {
+  subject: SubjectData;
+  onSelect: (s: SubjectData) => void;
+  handleKeyDown: (e: React.KeyboardEvent, action: () => void) => void;
+}) => (
+  <div
+    className="subject-item"
+    role="listitem"
+    tabIndex={0}
+    onKeyDown={(e) => handleKeyDown(e, () => onSelect(subject))}
+    onClick={() => onSelect(subject)}
+  >
+    <span className="subject-code">{subject.code}</span>
+    <span className="subject-name">{subject.name}</span>
+  </div>
+);
+
+// Extracted CategoryGroup to reduce nesting
+const CategoryGroup = ({
+  category,
+  subjects,
+  isExpanded,
+  hasSearchResults,
+  toggleCategory,
+  onSelect,
+  handleKeyDown,
+}: {
+  category: string;
+  subjects: SubjectData[];
+  isExpanded: boolean;
+  hasSearchResults: boolean;
+  toggleCategory: (c: string) => void;
+  onSelect: (s: SubjectData) => void;
+  handleKeyDown: (e: React.KeyboardEvent, action: () => void) => void;
+}) => {
+  return (
+    <div className="category-group">
+      <div
+        className="category-header"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        onKeyDown={(e) => handleKeyDown(e, () => toggleCategory(category))}
+        onClick={() => toggleCategory(category)}
+      >
+        <span className="category-title">{category}</span>
+        <span className="category-arrow">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.2s ease",
+            }}
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </span>
+      </div>
+
+      {(isExpanded || hasSearchResults) && (
+        <div className="subject-list" role="list">
+          {subjects.map((subject) => (
+            <SubjectItem
+              key={subject.code}
+              subject={subject}
+              onSelect={onSelect}
+              handleKeyDown={handleKeyDown}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SearchDropdown: React.FC<SearchDropdownProps> = ({
   searchTerm,
   setSearchTerm,
@@ -51,13 +140,13 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({
       {/* SEARCH */}
       <div className="dropdown-search-container">
         <div className="search-input-wrapper">
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="14" 
-            height="14" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor" 
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
             strokeWidth="2"
             className="search-icon"
             aria-hidden="true"
@@ -84,59 +173,16 @@ const SearchDropdown: React.FC<SearchDropdownProps> = ({
           const hasSearchResults = searchTerm.trim() && subjects.length > 0;
 
           return (
-            <div key={category} className="category-group">
-              <div
-                className="category-header"
-                role="button"
-                tabIndex={0}
-                aria-expanded={isExpanded}
-                onKeyDown={(e) => handleKeyDown(e, () => toggleCategory(category))}
-                onClick={() => toggleCategory(category)}
-              >
-                <span className="category-title">{category}</span>
-                <span className="category-arrow">
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    width="12" 
-                    height="12" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="3" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                    style={{ 
-                      transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', 
-                      transition: 'transform 0.2s ease' 
-                    }}
-                    aria-hidden="true"
-                  >
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </span>
-              </div>
-
-              {/* SUBJECTS */}
-              {(isExpanded || hasSearchResults) && (
-                <div className="subject-list" role="list">
-                  {subjects.map((subject) => (
-                    <div
-                      key={subject.code}
-                      className="subject-item"
-                      role="listitem"
-                      tabIndex={0}
-                      onKeyDown={(e) => handleKeyDown(e, () => onSelect(subject))}
-                      onClick={() => onSelect(subject)}
-                    >
-                      <span className="subject-code">
-                        {subject.code}
-                      </span>
-                      <span className="subject-name">{subject.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <CategoryGroup
+              key={category}
+              category={category}
+              subjects={subjects}
+              isExpanded={isExpanded}
+              hasSearchResults={!!hasSearchResults}
+              toggleCategory={toggleCategory}
+              onSelect={onSelect}
+              handleKeyDown={handleKeyDown}
+            />
           );
         })}
       </div>

@@ -16,7 +16,7 @@ const AddSemesterRow: React.FC<AddSemesterRowProps> = ({
       <td colSpan={9} style={{ textAlign: "left", padding: 10 }}>
         <button
           onClick={() => {
-            const newId = `sem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const newId = `sem-${self.crypto.randomUUID()}`;
             if (typeof setSemesters === 'function') {
                 setSemesters([
                   ...semesters,

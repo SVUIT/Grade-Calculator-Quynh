@@ -33,8 +33,8 @@ const EditModal: React.FC<EditModalProps> = ({
     
     // Validate số
     if (val !== "" && !/^\d+$/.test(val)) {
-        const num = parseFloat(val);
-        val = isNaN(num) ? "0" : Math.floor(num).toString();
+        const num = Number.parseFloat(val);
+        val = Number.isNaN(num) ? "0" : Math.floor(num).toString();
     }
     
     if (val !== "") {
@@ -72,11 +72,20 @@ const EditModal: React.FC<EditModalProps> = ({
 
   return (
     <>
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         aria-label="Close modal"
-        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 99 }}
+        style={{ 
+            position: "fixed", 
+            inset: 0, 
+            background: "rgba(0,0,0,0.6)", 
+            zIndex: 99,
+            border: "none",
+            width: "100%",
+            height: "100%",
+            padding: 0,
+            cursor: "default"
+        }}
         onClick={handleClose}
         onKeyDown={handleOverlayKeyDown}
       />
@@ -302,7 +311,7 @@ const EditModal: React.FC<EditModalProps> = ({
                     if (e.key === "Enter") {
                         const expectedVal = (e.target as HTMLInputElement).value;
                         const xp = Number(expectedVal);
-                        if (!isNaN(xp) && expectedVal.trim() !== "") {
+                        if (!Number.isNaN(xp) && expectedVal.trim() !== "") {
                             const updated = [...semesters];
                             const subject = updated[editing.semesterIdx].subjects[editing.subjectIdx];
                             const requiredScores = calcRequiredScores(subject, xp);

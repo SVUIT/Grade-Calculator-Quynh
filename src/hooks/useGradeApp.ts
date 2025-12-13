@@ -7,7 +7,7 @@ const LOCAL_STORAGE_KEY = "grade_app_semesters";
 const THEME_KEY = "grade_app_theme";
 
 // Helper to generate unique ID
-const generateId = () => `sem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+const generateId = (prefix = "sem") => `${prefix}-${self.crypto.randomUUID()}`;
 
 export const useGradeApp = () => {
   // Theme State
@@ -83,22 +83,28 @@ export const useGradeApp = () => {
   const [backupSubject, setBackupSubject] = useState<Subject | null>(null);
 
   // ======================= DELETE SEMESTER ====================
-  // Updated to use ID for precise deletion
   const deleteSemester = (id: string) => {
     setSemesters((prevSemesters) => prevSemesters.filter((s) => s.id !== id));
   };
 
   // ======================= DELETE SUBJECT =====================
   const deleteSubject = (sIdx: number, subIdx: number) => {
-    setSemesters((prev) => 
-      prev.map((sem, i) => {
-        if (i !== sIdx) return sem;
-        return {
-          ...sem,
-          subjects: sem.subjects.filter((_, idx) => idx !== subIdx)
+    setSemesters((prev) => {
+      const updatedSemesters = [...prev];
+      const targetSemester = updatedSemesters[sIdx];
+      
+      if (targetSemester) {
+        // Create a new subjects array excluding the one at subIdx
+        const updatedSubjects = targetSemester.subjects.filter((_, idx) => idx !== subIdx);
+        
+        updatedSemesters[sIdx] = {
+          ...targetSemester,
+          subjects: updatedSubjects
         };
-      })
-    );
+      }
+      
+      return updatedSemesters;
+    });
   };
 
   // ======================= OPEN POPUP EDIT ====================
@@ -110,25 +116,41 @@ export const useGradeApp = () => {
   };
 
   // ================== UPDATE ANY FIELD ========================
-  const updateSubjectField = (sIdx: number, subIdx: number, field: string, value: string) => {
-    setSemesters((prev) => 
-      prev.map((sem, i) => {
-        if (i !== sIdx) return sem;
-        
-        return {
-          ...sem,
-          subjects: sem.subjects.map((sub, j) => {
-            if (j !== subIdx) return sub;
-            
-            // Normalize score fields
-            const isScoreField = ["diemQT", "diemGK", "diemTH", "diemCK"].includes(field);
-            const newValue = isScoreField ? normalizeScore(value) : value;
+  const updateSubjectField = (
+    sIdx: number,
+    subIdx: number,
+    field: string,
+    value: string
+  ) => {
+    setSemesters((prev) => {
+      // Clone the semesters array
+      const updatedSemesters = [...prev];
+      const targetSemester = updatedSemesters[sIdx];
+      if (!targetSemester) return prev;
 
-            return { ...sub, [field]: newValue };
-          })
-        };
-      })
-    );
+      // Clone the subjects array for the target semester
+      const updatedSubjects = [...targetSemester.subjects];
+      const targetSubject = updatedSubjects[subIdx];
+      if (!targetSubject) return prev;
+
+      // Logic for score normalization
+      const isScoreField = ["diemQT", "diemGK", "diemTH", "diemCK"].includes(field);
+      const newValue = isScoreField ? normalizeScore(value) : value;
+
+      // Update the specific subject
+      updatedSubjects[subIdx] = {
+        ...targetSubject,
+        [field]: newValue,
+      };
+
+      // Update the semester with the new subjects array
+      updatedSemesters[sIdx] = {
+        ...targetSemester,
+        subjects: updatedSubjects,
+      };
+
+      return updatedSemesters;
+    });
   };
 
   const [openMenu, setOpenMenu] = useState<{ s: number; i: number } | null>(

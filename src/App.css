@@ -522,7 +522,10 @@ body {
   }
   
   /* Remove wrapper padding */
-  .table-wrapper { padding-bottom: 0; }
+  .table-wrapper { 
+    padding-bottom: 0;
+    overflow-x: visible !important;
+ }
   
   /* Navbar Smaller */
   .navbar { 
@@ -563,10 +566,6 @@ body {
     min-width: 0; 
     font-size: 9px; 
     margin-right: 0 !important;
-  }
-  
-  .table-wrapper {
-    overflow-x: visible !important;
   }
 
   .grade-table th, .grade-table td {
