@@ -1,5 +1,5 @@
 import React from "react";
-import type { Semester, Subject, SubjectData } from "../../types";
+import type { Semester, Subject, Course } from "../../types";
 import {
   calcRequiredScores,
   calcSubjectScore,
@@ -30,7 +30,7 @@ interface SubjectRowProps {
   editSearchTerm: string;
   setEditSearchTerm: (term: string) => void;
 
-  editSearchResults: { category: string; subjects: SubjectData[] }[];
+  editSearchResults: { category: string; subjects: Course[] }[];
   editExpandedCategories: Set<string>;
   setEditExpandedCategories: (cats: Set<string>) => void;
 }
@@ -74,17 +74,19 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
     }
 
     const updated = [...semesters];
-    // Only update if the normalized value is not empty
-    if (normalized !== '') {
-      (updated[si].subjects[i] as any)[f] = normalized;
-    } else {
-      (updated[si].subjects[i] as any)[f] = '';
-    }
+    (updated[si].subjects[i] as any)[f] = normalized;
 
     // Reset min scores
-    ["diemQT", "diemGK", "diemTH", "diemCK"].forEach((field) => {
-       (updated[si].subjects[i] as any)[`min_${field}`] = "";
-    });
+    const minMap: Record<string, string> = {
+      "progressScore": "minProgressScore",
+      "midtermScore": "minMidtermScore",
+      "practiceScore": "minPracticeScore",
+      "finalScore": "minFinalScore"
+    };
+
+    if (minMap[f]) {
+         (updated[si].subjects[i] as any)[minMap[f]] = "";
+    }
 
     // Recalculate if expected score exists
     if (sub.expectedScore && sub.expectedScore.toString().trim() !== "") {
@@ -122,48 +124,54 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
     }
   };
 
+  const fields = [
+    { key: "courseCode", placeholder: "Nhập mã\nHP" },
+    { key: "courseName", placeholder: "Nhập tên HP" },
+    { key: "credits", placeholder: "Nhập tín chỉ" }
+  ];
+
   return (
     <tr>
       <td className="semester-bg" style={{ textAlign: "center" }}>{i + 1}</td>
 
-      {["maHP", "tenHP", "tinChi"].map((f) => (
+      {fields.map((field) => (
         <td
-          key={f}
+          key={field.key}
           style={{
             position: "relative",
-            textAlign: f === "maHP" || f === "tinChi" ? "center" : "left",
+            textAlign: field.key === "courseCode" || field.key === "credits" ? "center" : "left",
           }}
         >
-          {(f === "maHP" || f === "tenHP") && (
+          {(field.key === "courseCode" || field.key === "courseName") && (
             <>
               <div
                 contentEditable
                 suppressContentEditableWarning
                 className="editable-cell"
-                data-placeholder={f === "maHP" ? "Nhập mã\nHP" : "Nhập tên HP"}
+                data-placeholder={field.placeholder}
                 role="textbox"
                 tabIndex={0}
                 style={
-                  f === "maHP" ? { whiteSpace: "pre-wrap", lineHeight: "1.2" } : {}
+                  field.key === "courseCode" ? { whiteSpace: "pre-wrap", lineHeight: "1.2" } : {}
                 }
                 onClick={(e) => {
                   e.stopPropagation();
-                  setEditDropdownOpen({ s: si, i, field: f });
+                  setEditDropdownOpen({ s: si, i, field: field.key });
                   setEditSearchTerm("");
                 }}
                 onKeyDown={(e) => {
                     if (e.key === "Enter") {
                         e.preventDefault(); 
-                        setEditDropdownOpen({ s: si, i, field: f });
+                        setEditDropdownOpen({ s: si, i, field: field.key });
                     }
                 }}
               >
-                {(sub as any)[f]}
+                {(sub as any)[field.key]}
               </div>
 
               {editDropdownOpen?.s === si &&
                 editDropdownOpen?.i === i &&
-                editDropdownOpen?.field === f && (
+                editDropdownOpen?.field === field.key && (
                   <SearchDropdown
                     searchTerm={editSearchTerm}
                     setSearchTerm={setEditSearchTerm}
@@ -172,10 +180,26 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
                     setExpandedCategories={setEditExpandedCategories}
                     autoFocus={true}
                     minWidth={250}
-                    onSelect={(subject: SubjectData) => {
+                    onSelect={(course: Course) => {
                       const updated = [...semesters];
-                      updated[si].subjects[i].maHP = subject.code;
-                      updated[si].subjects[i].tenHP = subject.name;
+                      const targetSub = updated[si].subjects[i];
+
+                      targetSub.courseCode = course.courseCode;
+                      targetSub.courseName = course.courseNameVi;
+                      
+                      // Update credits if available
+                      if (course.credits) {
+                          targetSub.credits = course.credits.toString();
+                      }
+
+                      // Update weights if available
+                      if (course.defaultWeights) {
+                          targetSub.progressWeight = (course.defaultWeights.progressWeight * 100).toString();
+                          targetSub.midtermWeight = (course.defaultWeights.midtermWeight * 100).toString();
+                          targetSub.practiceWeight = (course.defaultWeights.practiceWeight * 100).toString();
+                          targetSub.finalWeight = (course.defaultWeights.finalTermWeight * 100).toString();
+                      }
+
                       setSemesters(updated);
                       setEditDropdownOpen(null);
                       setEditSearchTerm("");
@@ -186,7 +210,7 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
             </>
           )}
 
-          {f === "tinChi" && (
+          {field.key === "credits" && (
             <div
               contentEditable
               suppressContentEditableWarning
@@ -201,33 +225,43 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
                 }
               }}
               onBlur={(e) => {
-                updateSubjectField(si, i, f, e.target.innerText);
+                updateSubjectField(si, i, field.key, e.target.innerText);
               }}
             >
-              {(sub as any)[f]}
+              {(sub as any)[field.key]}
             </div>
           )}
         </td>
       ))}
       
-      {["diemQT", "diemGK", "diemTH", "diemCK"].map((f) => {
-        const score = (sub as any)[f];
-        const minScore = (sub as any)[`min_${f}`];
+      {[
+          { key: "progressScore", minKey: "minProgressScore", weightKey: "progressWeight", label: "QT" },
+          { key: "midtermScore", minKey: "minMidtermScore", weightKey: "midtermWeight", label: "GK" },
+          { key: "practiceScore", minKey: "minPracticeScore", weightKey: "practiceWeight", label: "TH" },
+          { key: "finalScore", minKey: "minFinalScore", weightKey: "finalWeight", label: "CK" }
+      ].map((f) => {
+        const score = (sub as any)[f.key];
+        const minScore = (sub as any)[f.minKey];
         const hasMinScore = minScore && minScore.toString().trim() !== "";
         const isOver10 = hasMinScore && Number(minScore) > 10;
+        const weight = (sub as any)[f.weightKey];
 
         return (
           <td
-            key={f}
+            key={f.key}
             className="score-cell"
             style={{
-              background: "transparent",
+              background: hasMinScore
+                ? isOver10
+                  ? "transparent"
+                  : "var(--primary-purple)"
+                : "transparent",
             }}
           >
             <div
               contentEditable
               suppressContentEditableWarning
-              title={`Trọng số: ${(sub as any)[`weight_${f}`]}%`}
+              title={`Trọng số: ${weight}%`}
               className={`score-content ${
                 hasMinScore
                   ? isOver10
@@ -235,7 +269,7 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
                     : "text-white"
                   : "text-normal"
               }`}
-              data-placeholder={`Nhập điểm ${f.replace("diem", "")}`}
+              data-placeholder={`Nhập điểm ${f.label}`}
               role="textbox"
               tabIndex={0}
               onKeyDown={(e) => {
@@ -244,8 +278,7 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
                   e.currentTarget.blur();
                 }
               }}
-              onBlur={(e) => handleScoreBlur(f, e.target.innerText, e.target as HTMLElement)}
-              suppressHydrationWarning
+              onBlur={(e) => handleScoreBlur(f.key, e.target.innerText, e.target as HTMLElement)}
             >
               {score != null ? score : ''}
             </div>
@@ -309,11 +342,11 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
               openMenu?.s === si && openMenu?.i === i ? "flex" : "none",
             flexDirection: "column",
             position: "absolute",
-            right: "-10px", // Aligned with the dots
-            top: "75%",    // Below the dots
-            marginTop: 0,
+            right: "0",    // Aligned with the right edge of the cell (Left of dots)
+            top: "75%",    // Below the content
+            marginTop: "0",
             borderRadius: 8,
-            minWidth: 140,
+            minWidth: 140, // Standard width
             width: "max-content",
             maxHeight: "none",
             overflowY: "visible",
@@ -351,7 +384,7 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
                 openAdvancedModal(si, i);
              }}
           >
-            Chỉnh sửa
+            Chỉnh sửa nâng cao
           </div>
 
           <div 

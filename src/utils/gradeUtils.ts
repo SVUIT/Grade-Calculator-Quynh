@@ -1,4 +1,4 @@
-import type { Subject } from "../types";
+import type { Subject, Course } from "../types";
 
 // ================== AUTO CALCULATE - ĐIỂM HP =================
 export const calcSubjectScore = (subj: Partial<Subject>): string => {
@@ -9,18 +9,18 @@ export const calcSubjectScore = (subj: Partial<Subject>): string => {
   
   // Otherwise, use the default calculation (though this might not match the PDF's calculation)
   const scores = [
-    subj.diemQT ? Number(subj.diemQT) : null,
-    subj.diemGK ? Number(subj.diemGK) : null,
-    subj.diemTH ? Number(subj.diemTH) : null,
-    subj.diemCK ? Number(subj.diemCK) : null,
-  ].map(score => score === null ? null : isNaN(score) ? null : score);
+    Number(subj.progressScore) || 0,
+    Number(subj.midtermScore) || 0,
+    Number(subj.practiceScore) || 0,
+    Number(subj.finalScore) || 0,
+  ];
 
   const weights = [
-    subj.weight_diemQT ? Number(subj.weight_diemQT) : null,
-    subj.weight_diemGK ? Number(subj.weight_diemGK) : null,
-    subj.weight_diemTH ? Number(subj.weight_diemTH) : null,
-    subj.weight_diemCK ? Number(subj.weight_diemCK) : null,
-  ].map(weight => weight === null ? 0 : isNaN(weight) ? 0 : weight);
+    Number(subj.progressWeight) || 0,
+    Number(subj.midtermWeight) || 0,
+    Number(subj.practiceWeight) || 0,
+    Number(subj.finalWeight) || 0,
+  ];
 
   const totalWeight = weights.reduce((a, b) => a + b, 0);
 
@@ -49,7 +49,7 @@ export const calcSemesterAverage = (subjects: Subject[]) => {
 
   subjects.forEach((sub) => {
     const hp = Number(calcSubjectScore(sub));
-    const tc = Number(sub.tinChi);
+    const tc = Number(sub.credits);
     if (!isNaN(hp) && !isNaN(tc)) {
       totalTC += tc;
       totalScore += hp * tc;
@@ -78,12 +78,15 @@ export const normalizeScore = (value: string): string => {
 };
 
 export const calcRequiredScores = (subj: Subject, expected: number): Partial<Subject> => {
-  const fields: (keyof Subject)[] = ["diemQT", "diemGK", "diemTH", "diemCK"];
-  const weightFields: (keyof Subject)[] = ["weight_diemQT", "weight_diemGK", "weight_diemTH", "weight_diemCK"];
+  const fields: (keyof Subject)[] = ["progressScore", "midtermScore", "practiceScore", "finalScore"];
+  const weightFields: (keyof Subject)[] = ["progressWeight", "midtermWeight", "practiceWeight", "finalWeight"];
+  const minFields: (keyof Subject)[] = ["minProgressScore", "minMidtermScore", "minPracticeScore", "minFinalScore"];
 
   let currentSum = 0;
   let missingWeight = 0;
   const missingFields: string[] = [];
+  const missingMinFields: string[] = [];
+
 
   fields.forEach((f, idx) => {
     const raw = subj[f] as string;
@@ -95,6 +98,8 @@ export const calcRequiredScores = (subj: Subject, expected: number): Partial<Sub
     } else {
       missingWeight += w; // chưa nhập
       missingFields.push(f as string);
+      missingMinFields.push(minFields[idx] as string);
+
     }
   });
 
@@ -106,10 +111,8 @@ export const calcRequiredScores = (subj: Subject, expected: number): Partial<Sub
   const valid = Math.max(0, need);
 
   const result: Partial<Subject> = {};
-  missingFields.forEach((f) => {
-    // Dynamic key assignment requires careful typing or casting in TS, 
-    // simply creating the object with known keys is safer but loop is fine here with Partial<Subject>
-    (result as any)[`min_${f}`] = valid.toFixed(2);
+  missingMinFields.forEach((f) => {
+    (result as any)[f] = valid.toFixed(2);
   });
 
   return result;
@@ -117,7 +120,7 @@ export const calcRequiredScores = (subj: Subject, expected: number): Partial<Sub
 
 // ================== CHECK ĐỦ 4 CỘT ĐIỂM =================
 export const hasAllScores = (subj: Subject): boolean => {
-  const fields: (keyof Subject)[] = ["diemQT", "diemGK", "diemTH", "diemCK"];
+  const fields: (keyof Subject)[] = ["progressScore", "midtermScore", "practiceScore", "finalScore"];
   return fields.every((f) => {
     const val = subj[f];
     return val !== undefined && val.toString().trim() !== "";
@@ -125,10 +128,7 @@ export const hasAllScores = (subj: Subject): boolean => {
 };
 
 // ================== SEARCH HELPER =================
-export const getSearchResults = (
-  searchTerm: string,
-  data: { [key: string]: { code: string; name: string }[] }
-) => {
+export const getSearchResults = (searchTerm: string, data: Record<string, Course[]>) => {
   if (!searchTerm.trim()) {
     return Object.entries(data).map(([cat, subs]) => ({
       category: cat,
@@ -137,11 +137,11 @@ export const getSearchResults = (
   }
 
   const query = searchTerm.toLowerCase();
-  const results: { category: string; subjects: { code: string; name: string }[] }[] = [];
+  const results: { category: string; subjects: Course[] }[] = [];
 
   Object.entries(data).forEach(([category, subjects]) => {
     const filtered = subjects.filter(
-      (s) => s.code.toLowerCase().includes(query) || s.name.toLowerCase().includes(query)
+      (s) => s.courseCode.toLowerCase().includes(query) || s.courseNameVi.toLowerCase().includes(query)
     );
     if (filtered.length > 0) {
       results.push({ category, subjects: filtered });
