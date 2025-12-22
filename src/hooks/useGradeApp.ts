@@ -133,9 +133,21 @@ export const useGradeApp = () => {
       const targetSubject = updatedSubjects[subIdx];
       if (!targetSubject) return prev;
 
-      // Logic for score normalization
-      const isScoreField = ["diemQT", "diemGK", "diemTH", "diemCK"].includes(field);
-      const newValue = isScoreField ? normalizeScore(value) : value;
+      // Handle score fields (diemQT, diemGK, diemTH, diemCK)
+      const isScoreField = ['diemQT', 'diemGK', 'diemTH', 'diemCK'].includes(field);
+      let newValue = value;
+
+      if (isScoreField) {
+        // If empty or whitespace, set to 0 as default
+        if (!value || value.trim() === '') {
+          newValue = '0';
+        } else {
+          // Otherwise, normalize the score (0-100 scale)
+          const normalized = normalizeScore(value);
+          // Use normalized value if valid, otherwise default to 0
+          newValue = normalized !== '' ? normalized : '0';
+        }
+      }
 
       // Update the specific subject
       updatedSubjects[subIdx] = {

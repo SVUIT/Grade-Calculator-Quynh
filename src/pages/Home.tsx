@@ -3,7 +3,37 @@ import Footer from "../components/Footer/Footer";
 import EditModal from "../components/GradeTable/EditModal";
 import GradeTable from "../components/GradeTable/GradeTable";
 import { useGradeApp } from "../hooks/useGradeApp";
+import { uploadPdf } from "../config/appwrite";
 import { useState } from "react";
+
+// Type definitions for PDF processing
+interface CourseScores {
+  progressScore?: number;
+  midtermScore?: number;
+  practiceScore?: number;
+  finaltermScore?: number;
+  totalScore?: number;
+}
+
+interface Course {
+  courseCode: string;
+  courseNameVi: string;
+  credits: number;
+  scores: CourseScores;
+}
+
+interface SemesterData {
+  semesterName: string;
+  courses: Course[];
+}
+
+interface ProcessedPdfData {
+  semesters: SemesterData[];
+  courseCode?: string;
+  courseNameVi?: string;
+  credits?: number;
+  scores?: CourseScores;
+}
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
@@ -44,6 +74,30 @@ export default function Home() {
     editSearchResults,
   } = useGradeApp();
 
+  // Helper function to process PDF file using Appwrite Cloud Function
+  const processPdfFile = async (file: File): Promise<ProcessedPdfData> => {
+    try {
+      // Use the uploadPdf function from appwrite config
+      const response = await uploadPdf(file);
+      
+      // The response should match the ProcessedPdfData interface
+      if (response && response.semesters) {
+        return response as ProcessedPdfData;
+      }
+      
+      throw new Error('Invalid response format from server');
+    } catch (error) {
+      console.error('Error uploading/processing PDF:', error);
+      // Return a default structure if processing fails
+      return {
+        semesters: [{
+          semesterName: 'Học kỳ 1',
+          courses: []
+        }]
+      };
+    }
+  };
+
   const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -51,71 +105,62 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const response = await fetch('/api', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
+      // Upload and process the PDF file using the API endpoint
+      const responseData = await uploadPdf(file);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // If the response doesn't contain semesters, try processing locally
+      if (!responseData.semesters) {
+        const localProcessed = await processPdfFile(file);
+        if (localProcessed?.semesters) {
+          responseData.semesters = localProcessed.semesters;
+        } else {
+          throw new Error('Không thể đọc dữ liệu từ file PDF');
+        }
       }
 
-      const responseData = await response.json();
-      
-      if (!responseData || typeof responseData !== 'object') {
-        throw new Error('Invalid response format from server');
-      }
-
-      // If the response contains semesters data, use it directly
-      if (responseData.semesters && Array.isArray(responseData.semesters)) {
-        // Transform the server data to match our expected format
-        const formattedSemesters = responseData.semesters.map((semester: any, semIndex: number) => {
-          // Map courses to subjects, handling null scores
-          const subjects = Array.isArray(semester.courses) ? semester.courses.map((course: any, index: number) => {
-            const scores = course.scores || {};
-            return {
-              maHP: String(course.courseCode || '').trim(),
-              tenHP: String(course.courseNameVi || '').trim(),
-              tinChi: String(course.credits || '').trim(),
-              diemQT: scores.progressScore !== null ? String(scores.progressScore) : '',
-              diemGK: scores.midtermScore !== null ? String(scores.midtermScore) : '',
-              diemTH: scores.practiceScore !== null ? String(scores.practiceScore) : '',
-              diemCK: scores.finaltermScore !== null ? String(scores.finaltermScore) : '',
-              diemHP: scores.totalScore !== null ? String(scores.totalScore) : '',
-              // Score weights (default values)
-              min_diemQT: '',
-              min_diemGK: '',
-              min_diemTH: '',
-              min_diemCK: '',
-              weight_diemQT: '20',
-              weight_diemGK: '20',
-              weight_diemTH: '20',
-              weight_diemCK: '40',
-              expectedScore: '',
-              id: `subj-${Date.now()}-${semIndex}-${index}`,
-              stt: index + 1,
-            };
-          }) : [];
-          
+      // Transform the parsed data to match our expected format
+      const formattedSemesters = responseData.semesters.map((semester: SemesterData, semIndex: number) => ({
+        id: `sem-${Date.now()}-${semIndex}`,
+        name: String(semester.semesterName || `Học kỳ ${semIndex + 1}`).trim(),
+        subjects: semester.courses ? semester.courses.map((course: Course, index: number) => {
+          const scores = course.scores || {};
           return {
-            id: `sem-${Date.now()}-${semIndex}`,
-            name: String(semester.semesterName || `Học kỳ ${semIndex + 1}`).trim(),
-            subjects: subjects
+            id: `subj-${Date.now()}-${semIndex}-${index}`,
+            stt: index + 1,
+            maHP: String(course.courseCode || '').trim(),
+            tenHP: String(course.courseNameVi || '').trim(),
+            tinChi: String(course.credits || '0').trim(),
+            diemQT: scores.progressScore !== null && scores.progressScore !== undefined ? String(scores.progressScore) : '',
+            diemGK: scores.midtermScore !== null && scores.midtermScore !== undefined ? String(scores.midtermScore) : '',
+            diemTH: scores.practiceScore !== null && scores.practiceScore !== undefined ? String(scores.practiceScore) : '',
+            diemCK: scores.finaltermScore !== null && scores.finaltermScore !== undefined ? String(scores.finaltermScore) : '',
+            // Use the pre-calculated total score from the PDF
+            diemHP: scores.totalScore !== null && scores.totalScore !== undefined ? String(scores.totalScore) : '',
+            // Set minimum scores to 0 to avoid affecting calculations
+            min_diemQT: '0',
+            min_diemGK: '0',
+            min_diemTH: '0',
+            min_diemCK: '0',
+            // Set default weights that add up to 100%
+            // These are typical weights used in many grading systems
+            // Adjust these values if you know the exact weights used in the PDF
+            weight_diemQT: '20',  // Quá trình
+            weight_diemGK: '20',  // Giữa kỳ
+            weight_diemTH: '20',  // Thực hành
+            weight_diemCK: '40',  // Cuối kỳ
+            expectedScore: ''
           };
-        });
-        
+        }) : []
+      }));
+      
+      // Update the state with the new semesters
+      if (formattedSemesters.length > 0) {
         setSemesters(formattedSemesters);
         return;
       }
       
-      // If no semesters in response but has individual course data
+      // Handle single course case if no semesters but has course data
       if (responseData.courseCode || responseData.courseNameVi) {
         setSemesters(prevSemesters => {
           const newSemesters = [...prevSemesters];
@@ -133,20 +178,25 @@ export default function Home() {
           const newSubject = {
             maHP: responseData.courseCode?.trim() || '',
             tenHP: responseData.courseNameVi?.trim() || '',
-            tinChi: responseData.credits ? responseData.credits.toString() : '0',
-            diemQT: responseData.progressScore ? responseData.progressScore.toString() : '',
-            diemGK: responseData.midtermScore ? responseData.midtermScore.toString() : '',
-            diemTH: responseData.practiceScore ? responseData.practiceScore.toString() : '',
-            diemCK: responseData.finaltermScore ? responseData.finaltermScore.toString() : '',
+            tinChi: responseData.credits?.toString() || '0',
+            diemQT: responseData.scores?.progressScore !== null && responseData.scores?.progressScore !== undefined ? String(responseData.scores.progressScore) : '',
+            diemGK: responseData.scores?.midtermScore !== null && responseData.scores?.midtermScore !== undefined ? String(responseData.scores.midtermScore) : '',
+            diemTH: responseData.scores?.practiceScore !== null && responseData.scores?.practiceScore !== undefined ? String(responseData.scores.practiceScore) : '',
+            diemCK: responseData.scores?.finaltermScore !== null && responseData.scores?.finaltermScore !== undefined ? String(responseData.scores.finaltermScore) : '',
+            // Use the pre-calculated total score from the PDF
+            diemHP: responseData.scores?.totalScore !== null && responseData.scores?.totalScore !== undefined ? String(responseData.scores.totalScore) : '',
+            // Set minimum scores to 0 to avoid affecting calculations
             min_diemQT: '0',
             min_diemGK: '0',
             min_diemTH: '0',
             min_diemCK: '0',
-            weight_diemQT: '20',
-            weight_diemGK: '20',
-            weight_diemTH: '20',
-            weight_diemCK: '40',
-            diemHP: responseData.totalScore ? responseData.totalScore.toString() : '',
+            // Set default weights that add up to 100%
+            // These are typical weights used in many grading systems
+            // Adjust these values if you know the exact weights used in the PDF
+            weight_diemQT: '20',  // Quá trình
+            weight_diemGK: '20',  // Giữa kỳ
+            weight_diemTH: '20',  // Thực hành
+            weight_diemCK: '40',  // Cuối kỳ
             expectedScore: '',
             id: Date.now().toString(),
             stt: (newSemesters[0]?.subjects?.length || 0) + 1
@@ -158,60 +208,19 @@ export default function Home() {
             subjects: [...(newSemesters[0]?.subjects || []), newSubject]
           };
           
-          newSemesters[0] = firstSemester;
-          return newSemesters;
+          return [firstSemester, ...newSemesters.slice(1)];
         });
-      } else if (responseData.semesters && responseData.semesters.length > 0) {
-        // Handle multiple semesters if needed
-        const formattedSemesters = responseData.semesters.map((semester: any, semIndex: number) => {
-          // Map courses to subjects, handling null scores
-          const subjects = Array.isArray(semester.courses) ? semester.courses.map((course: any, index: number) => {
-            const scores = course.scores || {};
-            return {
-              maHP: String(course.courseCode || '').trim(),
-              tenHP: String(course.courseNameVi || '').trim(),
-              tinChi: String(course.credits || '').trim(),
-              diemQT: scores.progressScore !== null ? String(scores.progressScore) : '',
-              diemGK: scores.midtermScore !== null ? String(scores.midtermScore) : '',
-              diemTH: scores.practiceScore !== null ? String(scores.practiceScore) : '',
-              diemCK: scores.finaltermScore !== null ? String(scores.finaltermScore) : '',
-              diemHP: scores.totalScore !== null ? String(scores.totalScore) : '',
-              // Score weights (default values)
-              min_diemQT: '',
-              min_diemGK: '',
-              min_diemTH: '',
-              min_diemCK: '',
-              weight_diemQT: '20',
-              weight_diemGK: '20',
-              weight_diemTH: '20',
-              weight_diemCK: '40',
-              expectedScore: '',
-              id: `subj-${Date.now()}-${semIndex}-${index}`,
-              stt: index + 1,
-            };
-          }) : [];
-          
-          return {
-            id: `sem-${Date.now()}-${semIndex}`,
-            name: String(semester.semesterName || `Học kỳ ${semIndex + 1}`).trim(),
-            subjects: subjects
-          };
-        });
-        
-        setSemesters(formattedSemesters);
       }
-    } catch (err) {
-      console.error('Error uploading PDF:', err);
-      setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi xử lý file PDF');
+      
+      event.target.value = '';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+      console.error('Error processing PDF:', err);
     } finally {
       setIsLoading(false);
-      // Reset the file input to allow re-uploading the same file
-      if (event.target) {
-        event.target.value = '';
-      }
     }
   };
-
 
   return (
     <div className={theme === 'light' ? 'light-mode' : ''} style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>

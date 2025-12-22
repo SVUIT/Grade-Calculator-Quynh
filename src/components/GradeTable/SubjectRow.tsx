@@ -56,13 +56,30 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
 }) => {
 
   const handleScoreBlur = (f: string, text: string, target: HTMLElement) => {
-    updateSubjectField(si, i, f, text);
+    // Only update if the text is not empty
+    if (text.trim() === '') {
+      updateSubjectField(si, i, f, '');
+      if (target) target.innerText = '';
+      return;
+    }
+    
+    // Only normalize non-empty values
     const normalized = normalizeScore(text);
-    if (target) target.innerText = normalized;
+    if (normalized !== '') {
+      updateSubjectField(si, i, f, normalized);
+      if (target) target.innerText = normalized;
+    } else {
+      updateSubjectField(si, i, f, '');
+      if (target) target.innerText = '';
+    }
 
     const updated = [...semesters];
-    // Cast to any to access string index, or ensure Subject type has index signature
-    (updated[si].subjects[i] as any)[f] = normalized;
+    // Only update if the normalized value is not empty
+    if (normalized !== '') {
+      (updated[si].subjects[i] as any)[f] = normalized;
+    } else {
+      (updated[si].subjects[i] as any)[f] = '';
+    }
 
     // Reset min scores
     ["diemQT", "diemGK", "diemTH", "diemCK"].forEach((field) => {
@@ -204,7 +221,7 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
             key={f}
             className="score-cell"
             style={{
-              background: hasMinScore ? "var(--primary-purple)" : "transparent",
+              background: "transparent",
             }}
           >
             <div
@@ -228,15 +245,16 @@ const SubjectRow: React.FC<SubjectRowProps> = ({
                 }
               }}
               onBlur={(e) => handleScoreBlur(f, e.target.innerText, e.target as HTMLElement)}
+              suppressHydrationWarning
             >
-              {hasMinScore ? minScore : score}
+              {score != null ? score : ''}
             </div>
           </td>
         );
       })}
 
       <td style={{ textAlign: "center" }}>
-        <b style={{ color: "var(--text-color)" }}>{calcSubjectScore(sub)}</b>
+        <b style={{ color: "var(--text-color)" }}>{calcSubjectScore(sub) || ''}</b>
       </td>
 
       <td style={{ position: "relative" }}>
