@@ -1,4 +1,4 @@
-import type { Subject } from "../types";
+import type { Subject, Course } from "../types";
 
 // ================== AUTO CALCULATE - ĐIỂM HP =================
 export const calcSubjectScore = (subj: Partial<Subject>): string => {
@@ -115,10 +115,7 @@ export const hasAllScores = (subj: Subject): boolean => {
 };
 
 // ================== SEARCH HELPER =================
-export const getSearchResults = (
-  searchTerm: string,
-  data: { [key: string]: { courseCode: string; courseNameVi: string }[] }
-) => {
+export const getSearchResults = (searchTerm: string, data: Record<string, Course[]>) => {
   if (!searchTerm.trim()) {
     return Object.entries(data).map(([cat, subs]) => ({
       category: cat,
@@ -127,7 +124,7 @@ export const getSearchResults = (
   }
 
   const query = searchTerm.toLowerCase();
-  const results: { category: string; subjects: { courseCode: string; courseNameVi: string }[] }[] = [];
+  const results: { category: string; subjects: Course[] }[] = [];
 
   Object.entries(data).forEach(([category, subjects]) => {
     const filtered = subjects.filter(
