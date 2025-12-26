@@ -9,9 +9,18 @@ const sanitizeFilename = (filename: string): string => {
     .replace(/^_+|_+$/g, "");
 };
 
+const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
+const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+
+if (!endpoint || !projectId) {
+  throw new Error(
+    `Missing Appwrite environment variables. endpoint="${endpoint}", projectId="${projectId}"`
+  );
+}
+
 const client = new Client()
-  .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "")
-  .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "")
+  .setEndpoint(endpoint)
+  .setProject(projectId)
   .setSelfSigned(true);
 
 if (process.env.NEXT_PUBLIC_APPWRITE_API_KEY) {
@@ -20,8 +29,6 @@ if (process.env.NEXT_PUBLIC_APPWRITE_API_KEY) {
 
 const functions = new Functions(client);
 const storage = new Storage(client);
-
-
 
 export const uploadPdfDirect = async (file: File): Promise<any> => {
   try {
@@ -39,9 +46,7 @@ export const uploadPdfDirect = async (file: File): Promise<any> => {
       key: process.env.NEXT_PUBLIC_GRADES_PDF_EXTRACTOR_KEY || "",
     };
 
-    const functionUrl = `${process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT}/functions/${
-      process.env.NEXT_PUBLIC_APPWRITE_FUNCTION_ID
-    }/executions`;
+    const functionUrl = `${endpoint}/functions/${process.env.NEXT_PUBLIC_APPWRITE_FUNCTION_ID}/executions`;
 
     try {
       const response = (await functions.createExecution(
@@ -76,8 +81,7 @@ export const uploadPdfDirect = async (file: File): Promise<any> => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Appwrite-Project":
-              process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "",
+            "X-Appwrite-Project": projectId,
             "X-Appwrite-Key":
               process.env.NEXT_PUBLIC_APPWRITE_API_KEY || "",
             Accept: "application/json",
